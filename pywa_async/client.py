@@ -29,6 +29,7 @@ from .handlers import (
     RawUpdateHandler,
     Handler,
     TemplateStatusHandler,
+    AccountUpdateHandler,
     ChatOpenedHandler,
 )
 from pywa.types.base_update import BaseUpdate
@@ -53,6 +54,7 @@ from .types import (
     CallbackSelection,
     ChatOpened,
     FlowCompletion,
+    AccountUpdate,
 )
 from . import utils
 from .api import WhatsAppCloudApiAsync
@@ -116,15 +118,16 @@ class WhatsApp(_WhatsApp):
         webhook_challenge_delay: int = _DEFAULT_VERIFY_DELAY_SEC,
         business_private_key: str | None = None,
         business_private_key_password: str | None = None,
-        flows_request_decryptor: utils.FlowRequestDecryptor
-        | None = utils.default_flow_request_decryptor,
-        flows_response_encryptor: utils.FlowResponseEncryptor
-        | None = utils.default_flow_response_encryptor,
+        flows_request_decryptor: (
+            utils.FlowRequestDecryptor | None
+        ) = utils.default_flow_request_decryptor,
+        flows_response_encryptor: (
+            utils.FlowResponseEncryptor | None
+        ) = utils.default_flow_response_encryptor,
         base_url: str = "https://graph.facebook.com",
-        api_version: str
-        | int
-        | float
-        | Literal[utils.Version.GRAPH_API] = utils.Version.GRAPH_API,
+        api_version: (
+            str | int | float | Literal[utils.Version.GRAPH_API]
+        ) = utils.Version.GRAPH_API,
         **kwargs,
     ) -> None:
         """
@@ -239,6 +242,7 @@ class WhatsApp(_WhatsApp):
         ChatOpenedHandler: ChatOpened.from_update,
         FlowCompletionHandler: FlowCompletion.from_update,
         TemplateStatusHandler: TemplateStatus.from_update,
+        AccountUpdateHandler: AccountUpdate.from_update,
         RawUpdateHandler: lambda _, data: data,
     }
     """A dictionary that maps handler types to their respective update constructors."""
@@ -426,12 +430,14 @@ class WhatsApp(_WhatsApp):
                 msg=_get_interactive_msg(
                     typ=typ,
                     action=kb,
-                    header={
-                        "type": MessageType.TEXT,
-                        "text": header,
-                    }
-                    if header
-                    else None,
+                    header=(
+                        {
+                            "type": MessageType.TEXT,
+                            "text": header,
+                        }
+                        if header
+                        else None
+                    ),
                     body=text,
                     footer=footer,
                 ),
@@ -1087,9 +1093,11 @@ class WhatsApp(_WhatsApp):
                 sender=_resolve_phone_id_param(self, sender, "sender"),
                 to=str(to),
                 typ=MessageType.CONTACTS,
-                msg=tuple(c.to_dict() for c in contact)
-                if isinstance(contact, Iterable)
-                else (contact.to_dict(),),
+                msg=(
+                    tuple(c.to_dict() for c in contact)
+                    if isinstance(contact, Iterable)
+                    else (contact.to_dict(),)
+                ),
                 reply_to_message_id=reply_to_message_id,
                 biz_opaque_callback_data=_resolve_tracker_param(tracker),
             )
@@ -1530,9 +1538,9 @@ class WhatsApp(_WhatsApp):
                 phone_id=_resolve_phone_id_param(self, phone_id, "phone_id"),
                 enable_welcome_message=enable_chat_opened,
                 prompts=tuple(ice_breakers) if ice_breakers else None,
-                commands=json.dumps([c.to_dict() for c in commands])
-                if commands
-                else None,
+                commands=(
+                    json.dumps([c.to_dict() for c in commands]) if commands else None
+                ),
             )
         )["success"]
 
@@ -2422,10 +2430,12 @@ async def _resolve_media_param(
     media: str | pathlib.Path | bytes | BinaryIO,
     mime_type: str | None,
     filename: str | None,
-    media_type: Literal[
-        MessageType.IMAGE, MessageType.VIDEO, MessageType.AUDIO, MessageType.STICKER
-    ]
-    | None,
+    media_type: (
+        Literal[
+            MessageType.IMAGE, MessageType.VIDEO, MessageType.AUDIO, MessageType.STICKER
+        ]
+        | None
+    ),
     phone_id: str,
 ) -> tuple[bool, str]:
     """

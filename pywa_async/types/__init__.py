@@ -63,3 +63,4 @@ from .flows import (
     FlowMetricGranularity,
 )
 from .chat_opened import ChatOpened
+from .account import AccountUpdate

@@ -34,6 +34,7 @@ __all__ = [
     "FlowCompletionHandler",
     "FlowRequestHandler",
     "ChatOpenedHandler",
+    "AccountUpdateHandler",
 ]
 
 import abc
@@ -56,6 +57,7 @@ from .types import (
     FlowResponse,
     ChatOpened,
     CallbackData,
+    AccountUpdate,
 )
 from .types.flows import (
     FlowCompletion,
@@ -261,9 +263,11 @@ class Handler(abc.ABC):
             ):
                 return False
 
-        await self.callback(wa, data) if inspect.iscoroutinefunction(
-            self.callback
-        ) else self.callback(wa, data)
+        (
+            await self.callback(wa, data)
+            if inspect.iscoroutinefunction(self.callback)
+            else self.callback(wa, data)
+        )
         return True
 
     @staticmethod
@@ -351,9 +355,11 @@ class _FactoryHandler(Handler):
     async def handle(self, wa: WhatsApp, data: Any) -> bool:
         update = await _get_factored_update(self, wa, data, self._data_field)
         if update is not None:
-            await self.callback(wa, update) if inspect.iscoroutinefunction(
-                self.callback
-            ) else self.callback(wa, update)
+            (
+                await self.callback(wa, update)
+                if inspect.iscoroutinefunction(self.callback)
+                else self.callback(wa, update)
+            )
             return True
         return False
 
@@ -1072,6 +1078,45 @@ class HandlerDecorators:
 
         return decorator
 
+    def on_account_update(
+        self: WhatsApp,
+        *filters: Callable[[WhatsApp, AccountUpdate], bool | Awaitable[bool]],
+        priority: int = 0,
+    ) -> Callable[
+        [Callable[[WhatsApp, AccountUpdate], Any | Awaitable[Any]]],
+        Callable[[WhatsApp, AccountUpdate], Any | Awaitable[Any]],
+    ]:
+        """
+        Decorator to register a function as a callback for :class:`pywa.types.AccountUpdate` updates (Updates regarding the account).
+
+        - Shortcut for :func:`~pywa.client.WhatsApp.add_handlers` with a :class:`AccountUpdateHandler`.
+
+        Example:
+
+            >>> from pywa.types
+            >>> from pywa import filters as fil
+            >>> wa = WhatsApp(...)
+            >>> @wa.on_account_update()
+            ... def account_update_handler(client: WhatsApp, update: AccountUpdate):
+            ...     print(f"Account update: {update}")
+
+        Args:
+            *filters: *To be added to filters*
+                Filters to apply to the incoming account updates (filters are function that take a
+                    :class:`pywa.WhatsApp` instance and the incoming :class:`pywa.types.AccountUpdate` and return :class:`bool`).
+            priority: The priority of the handler (default: ``0``).
+        """
+
+        def decorator(
+            callback: Callable[[WhatsApp, AccountUpdate], Any | Awaitable[Any]],
+        ) -> Callable[[WhatsApp, AccountUpdate], Any | Awaitable[Any]]:
+            self.add_handlers(
+                AccountUpdateHandler(callback, *filters, priority=priority)
+            )
+            return callback
+
+        return decorator
+
 
 class FlowRequestCallbackWrapper:
     """
@@ -1149,8 +1194,9 @@ class FlowRequestCallbackWrapper:
         *,
         action: FlowRequestActionType,
         screen: Screen | str | None = None,
-        data_filter: Callable[[WhatsApp, dict | None], bool | Awaitable[bool]]
-        | None = None,
+        data_filter: (
+            Callable[[WhatsApp, dict | None], bool | Awaitable[bool]] | None
+        ) = None,
     ) -> Callable[[_FlowRequestHandlerT], _FlowRequestHandlerT]:
         """
         Decorator to help you add more handlers to the same endpoint and split the logic into multiple functions.
@@ -1220,8 +1266,9 @@ class FlowRequestCallbackWrapper:
         callback: _FlowRequestHandlerT,
         action: FlowRequestActionType,
         screen: Screen | str | None = None,
-        data_filter: Callable[[WhatsApp, dict | None], bool | Awaitable[bool]]
-        | None = None,
+        data_filter: (
+            Callable[[WhatsApp, dict | None], bool | Awaitable[bool]] | None
+        ) = None,
     ) -> FlowRequestCallbackWrapper:
         """
         Add a handler to the current endpoint.
@@ -1336,14 +1383,17 @@ class FlowRequestCallbackWrapper:
             decrypted_request,
         )
         if self._handle_health_check and decrypted_request["action"] == "ping":
-            return self._response_encryptor(
-                {
-                    "version": decrypted_request["version"],
-                    "data": {"status": "active"},
-                },
-                aes_key,
-                iv,
-            ), 200
+            return (
+                self._response_encryptor(
+                    {
+                        "version": decrypted_request["version"],
+                        "data": {"status": "active"},
+                    },
+                    aes_key,
+                    iv,
+                ),
+                200,
+            )
         try:
             req = FlowRequest.from_dict(data=decrypted_request, raw_encrypted=payload)
         except Exception:
@@ -1382,23 +1432,47 @@ class FlowRequestCallbackWrapper:
             return "An error occurred", 500
 
         if self._acknowledge_errors and req.has_error:
-            return self._response_encryptor(
-                {
-                    "version": req.version,
-                    "data": {
-                        "acknowledged": True,
+            return (
+                self._response_encryptor(
+                    {
+                        "version": req.version,
+                        "data": {
+                            "acknowledged": True,
+                        },
                     },
-                },
-                aes_key,
-                iv,
-            ), 200
+                    aes_key,
+                    iv,
+                ),
+                200,
+            )
         if not isinstance(res, (FlowResponse | dict)):
             raise TypeError(
                 f"Flow endpoint ('{self._endpoint}') callback ('{callback.__name__}') must return a `FlowResponse`"
                 f" or `dict`, not {type(res)}"
             )
-        return self._response_encryptor(
-            res.to_dict() if isinstance(res, FlowResponse) else res,
-            aes_key,
-            iv,
-        ), 200
+        return (
+            self._response_encryptor(
+                res.to_dict() if isinstance(res, FlowResponse) else res,
+                aes_key,
+                iv,
+            ),
+            200,
+        )
+
+
+class AccountUpdateHandler(Handler):
+    """
+
+    Handler for :class:`pywa.types.AccountUpdate` updates(Updates regarding the account).
+
+    """
+
+    _field_name = "account_update"
+
+    def __init__(
+        self,
+        callback: Callable[[WhatsApp, AccountUpdate], Any | Awaitable[Any]],
+        *filters: Callable[[WhatsApp, AccountUpdate], bool | Awaitable[bool]],
+        priority: int = 0,
+    ):
+        super().__init__(callback, *filters, priority=priority)

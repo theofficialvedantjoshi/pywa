@@ -221,8 +221,8 @@ def matches(
         ignore_case: Whether to ignore case when matching.
     """
     strings = tuple(m.lower() for m in strings) if ignore_case else strings
-    return (
-        lambda _, m: any(
+    return lambda _, m: (
+        any(
             (txt.lower() if ignore_case else txt) in strings
             for txt_field in m._txt_fields
             if (txt := getattr(m, txt_field)) is not None
@@ -251,8 +251,8 @@ def startswith(
         ignore_case: Whether to ignore case when matching.
     """
     prefixes = tuple(m.lower() for m in prefixes) if ignore_case else prefixes
-    return (
-        lambda _, u: any(
+    return lambda _, u: (
+        any(
             (txt.lower() if ignore_case else txt).startswith(prefixes)
             for txt_field in u._txt_fields
             if (txt := getattr(u, txt_field)) is not None
@@ -281,8 +281,8 @@ def endswith(
         ignore_case: Whether to ignore case when matching.
     """
     suffixes = tuple(m.lower() for m in suffixes) if ignore_case else suffixes
-    return (
-        lambda _, u: any(
+    return lambda _, u: (
+        any(
             (txt.lower() if ignore_case else txt).endswith(suffixes)
             for txt_field in u._txt_fields
             if (txt := getattr(u, txt_field)) is not None
@@ -311,8 +311,8 @@ def contains(
         ignore_case: Whether to ignore case when matching.
     """
     words = tuple(m.lower() for m in words) if ignore_case else words
-    return (
-        lambda _, u: any(
+    return lambda _, u: (
+        any(
             word in (txt.lower() if ignore_case else txt)
             for word in words
             for txt_field in u._txt_fields
@@ -344,8 +344,8 @@ def regex(
     patterns = tuple(
         p if isinstance(p, re.Pattern) else re.compile(p, flags) for p in patterns
     )
-    return (
-        lambda _, u: any(
+    return lambda _, u: (
+        any(
             re.match(p, txt)
             for p in patterns
             for txt_field in u._txt_fields

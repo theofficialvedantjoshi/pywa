@@ -308,31 +308,35 @@ class NewTemplate:
                     type=ComponentType.BODY.value,
                     add_security_recommendation=self.body.add_security_recommendation,
                 ),
-                dict(
-                    type=ComponentType.FOOTER.value,
-                    code_expiration_minutes=self.body.code_expiration_minutes,
-                )
-                if self.body.code_expiration_minutes
-                else None,
+                (
+                    dict(
+                        type=ComponentType.FOOTER.value,
+                        code_expiration_minutes=self.body.code_expiration_minutes,
+                    )
+                    if self.body.code_expiration_minutes
+                    else None
+                ),
             )
         else:
             components = (
                 self.body.to_dict(placeholder),
                 self.header.to_dict(placeholder) if self.header else None,
                 self.footer.to_dict() if self.footer else None,
-                dict(
-                    type=ComponentType.BUTTONS.value,
-                    buttons=tuple(
-                        button.to_dict(placeholder)
-                        for button in (
-                            self.buttons
-                            if isinstance(self.buttons, Iterable)
-                            else (self.buttons,)
-                        )
-                    ),
-                )
-                if self.buttons
-                else None,
+                (
+                    dict(
+                        type=ComponentType.BUTTONS.value,
+                        buttons=tuple(
+                            button.to_dict(placeholder)
+                            for button in (
+                                self.buttons
+                                if isinstance(self.buttons, Iterable)
+                                else (self.buttons,)
+                            )
+                        ),
+                    )
+                    if self.buttons
+                    else None
+                ),
             )
         return dict(
             name=self.name,
@@ -991,20 +995,24 @@ class Template:
             components=tuple(
                 comp
                 for comp in (
-                    dict(
-                        type=ComponentType.BODY.value,
-                        parameters=tuple(
-                            component.to_dict() for component in self.body
-                        ),
-                    )
-                    if self.body
-                    else None,
-                    dict(
-                        type=ComponentType.HEADER.value,
-                        parameters=(self.header.to_dict(is_header_url),),
-                    )
-                    if self.header
-                    else None,
+                    (
+                        dict(
+                            type=ComponentType.BODY.value,
+                            parameters=tuple(
+                                component.to_dict() for component in self.body
+                            ),
+                        )
+                        if self.body
+                        else None
+                    ),
+                    (
+                        dict(
+                            type=ComponentType.HEADER.value,
+                            parameters=(self.header.to_dict(is_header_url),),
+                        )
+                        if self.header
+                        else None
+                    ),
                     *(
                         (
                             dict(
@@ -1463,12 +1471,14 @@ class TemplateStatus(BaseUpdate):
             ),  # _missing_(str(None)) -> .NONE
             disable_date=value.get("disable_date"),
             other_info=(
-                str((oi := value["other_info"]).get("title"))
-                + ": "
-                + str(oi.get("description"))
-            )
-            if "other_info" in value
-            else None,
+                (
+                    str((oi := value["other_info"]).get("title"))
+                    + ": "
+                    + str(oi.get("description"))
+                )
+                if "other_info" in value
+                else None
+            ),
         )
 
     class TemplateEvent(utils.StrEnum):
